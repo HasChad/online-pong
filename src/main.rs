@@ -1,3 +1,4 @@
+use avian2d::prelude::*;
 use bevy::{prelude::*, window::WindowMode};
 use bevy_kira_audio::prelude::*;
 
@@ -7,7 +8,6 @@ const PLAYER_WIDTH: f32 = 30.0;
 const PLAYER_HEIGHT: f32 = 200.0;
 const BALL_DIAMETER: f32 = 40.0;
 
-// ! Fill those structs with collision, position and point
 #[derive(Component)]
 struct PlayerLeft;
 
@@ -15,10 +15,7 @@ struct PlayerLeft;
 struct PlayerRight;
 
 #[derive(Component)]
-struct Ball {
-    velocity_x: f32,
-    velocity_y: f32,
-}
+struct Ball;
 
 fn main() {
     App::new()
@@ -40,6 +37,9 @@ fn main() {
                 .build(),
         )
         .add_plugins(AudioPlugin)
+        .add_plugins(PhysicsPlugins::default())
+        .insert_resource(Gravity(Vec2::new(0.0, 0.0)))
+        .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, game_setup)
         .add_systems(
             Update,
@@ -50,9 +50,7 @@ fn main() {
 
 fn game_setup(mut commands: Commands, asset_server: Res<AssetServer>, audio: Res<Audio>) {
     commands.spawn(Camera2dBundle::default());
-    audio
-        .play(asset_server.load("sounds/game-music.ogg"))
-        .looped();
+    //audio.play(asset_server.load("sounds/game-music.ogg")).looped();
 
     //Background
     commands.spawn((
@@ -100,6 +98,8 @@ fn game_setup(mut commands: Commands, asset_server: Res<AssetServer>, audio: Res
             ..default()
         },
         PlayerLeft,
+        RigidBody::Kinematic,
+        Collider::rectangle(PLAYER_WIDTH, PLAYER_HEIGHT),
     ));
 
     //Player Right
@@ -114,6 +114,8 @@ fn game_setup(mut commands: Commands, asset_server: Res<AssetServer>, audio: Res
             ..default()
         },
         PlayerRight,
+        RigidBody::Kinematic,
+        Collider::rectangle(PLAYER_WIDTH, PLAYER_HEIGHT),
     ));
 
     //Ball
@@ -127,24 +129,19 @@ fn game_setup(mut commands: Commands, asset_server: Res<AssetServer>, audio: Res
             },
             ..default()
         },
-        Ball {
-            velocity_x: 300.0,
-            velocity_y: 0.0,
-        },
+        Ball,
+        ColliderDensity(0.0),
+        RigidBody::Dynamic,
+        Collider::circle(BALL_DIAMETER / 2.),
+        LinearVelocity(Vec2::new(300.0, 0.0)),
+        Restitution::PERFECTLY_ELASTIC.with_combine_rule(CoefficientCombine::Max),
+        Friction::ZERO.with_combine_rule(CoefficientCombine::Min),
     ));
 }
 
-fn ball_movement(mut ball_query: Query<(&mut Ball, &mut Transform)>, time: Res<Time>) {
-    for (mut ball, mut ball_tranform) in ball_query.iter_mut() {
-        ball_tranform.translation.x += ball.velocity_x * time.delta_seconds();
-
-        if ball_tranform.translation.x > (SCREEN_WIDTH / 2.0) - 60.0 {
-            ball.velocity_x = -ball.velocity_x;
-        }
-        if ball_tranform.translation.x < 0.0 - (SCREEN_WIDTH / 2.0) + 60.0 {
-            ball.velocity_x = -ball.velocity_x;
-        }
-    }
+fn ball_movement(ball_query: Query<&LinearVelocity, With<Ball>>) {
+    let ball_velocity = ball_query.single();
+    info!("ball velocity x = {}", ball_velocity.x);
 }
 
 fn playerleft_movement(
